@@ -6,7 +6,7 @@ from imageio import imread
 
 def get_uni_sphere_xyz(H, W):
     j, i = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
-    u = (i+0.5) / W * 2 * np.pi
+    u = (i+0.5) / W * 2 * np.pi * -1
     v = ((j+0.5) / H - 0.5) * np.pi
     z = -np.sin(v)
     c = np.cos(v)
