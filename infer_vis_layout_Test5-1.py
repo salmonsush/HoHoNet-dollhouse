@@ -19,6 +19,9 @@ from scipy.ndimage import shift
 from lib.misc.post_proc import np_coor2xy, np_coorx2u, np_coory2v
 from eval_layout import layout_2_depth
 
+# for manipulate layout
+import re
+
 # Database
 door_list = [
     {'id': 0, 'room': 0, 'door_point': (290,339), 'direction': 'L'},
@@ -27,20 +30,10 @@ door_list = [
     {'id': 3, 'room': 2, 'door_point': (295,727), 'direction': 'R'},
 ]
 
-Localization = [
+localization_json = [
     {'spot': 0, 'pair': ('0R', '2R')},
     {'spot': 1, 'pair': ('0L', '1B')},
 ]
-
-def get_vertices(cor_id, xs, ys, zs):
-    cor_id = cor_id.tolist()
-    points = np.empty((0, 3))
-    for point in cor_id:
-        x = xs[point[0], point[1]]
-        y = ys[point[0], point[1]]
-        z = zs[point[0], point[1]]
-        points = np.vstack((points, np.array([x, y, z])))
-    return points
 
 def Getdoor(x, y, points):
     xyz = points[x-1:x+1, y-1:y+1]
@@ -68,20 +61,53 @@ def Getdoor(x, y, points):
     normal = normal / np.linalg.norm(normal)
     return xyz[0,0], normal
 
-def transition(xyz1, xyz2, points2):
-    trans_matrix = xyz1- xyz2
-    points2[:,:,:3] = points2[:,:,:3] + trans_matrix
-    xyz2 = xyz2 + trans_matrix
-    return points2, xyz2
+def transition(src, ref):
+    # 방 번호
+    src_room = src['room']
+    ref_room = ref['room']
 
-def rotate(vector1, vector2, points2):
+    # 2차원 좌표
+    src_xy = src['door_point']
+    ref_xy = ref['door_point']
+
+    # 3차원 좌표
+    src_xyz = [points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]]
+    ref_xyz = [points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]]
+    print("[Transition] Original src_xyz:", src_xyz)
+    print("[Transition] Original ref_xyz:", ref_xyz)
+    
+    # 이동행렬
+    trans_matrix = ref_xyz - src_xyz
+    points_list[src_room][:,:,:3] = points_list[src_room][:,:,:3] + trans_matrix
+    src_xyz = src_xyz + trans_matrix
+    print("[Transition] Translated src_xyz:", src_xyz)
+
+    return None
+
+def rotate(src, ref):
+    # 방 번호
+    src_room = src['room']
+    ref_room = ref['room']
+
+    # 2차원 좌표
+    src_xy = src['door_point']
+    ref_xy = ref['door_point']
+
+    # 3차원 좌표
+    src_xyz = [points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]]
+    ref_xyz = [points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]]
+
+    # 법선 벡터
+    src_normal = Getdoor(src_xy[0], src_xy[1], points_list[src_room])
+    ref_normal = Getdoor(ref_xy[0], ref_xy[1], points_list[ref_room])
+    
     # Define the vectors
-    vector1 = -vector1
+    ref_normal = -ref_normal
     # Calculate the cross product between the two vectors
-    cross_product = np.cross(vector1, vector2)
+    cross_product = np.cross(ref_normal, src_normal)
 
     # Calculate the dot product between the two vectors
-    dot_product = np.dot(vector1, vector2)
+    dot_product = np.dot(ref_normal, src_normal)
 
     # Calculate the norm of the cross product
     cross_norm = np.linalg.norm(cross_product)
@@ -104,16 +130,16 @@ def rotate(vector1, vector2, points2):
                                 np.cos(angle) + axis[2]**2*(1-np.cos(angle))]])
 
     # Apply the rotation matrix to vector2
-    new_vector2 = np.dot(rotation_matrix, vector2)
+    new_vector2 = np.dot(rotation_matrix, src_normal)
 
-    print("Original vector1:", vector1)
-    print("Original vector2:", vector2)
-    print("Rotated vector2:", new_vector2)
+    print("[Rotation] Original vector1:", ref_normal)
+    print("[Rotation] Original vector2:", src_normal)
+    print("[Rotation] Rotated vector2:", new_vector2)
 
     # Rotate points2 to be the same orientation as points1
-    points2[:,:,:3] = np.dot(points2[:,:,:3], rotation_matrix)
+    points_list[src_room][:,:,:3] = np.dot(points_list[src_room][:,:,:3], rotation_matrix)
 
-    return points2, new_vector2
+    return None
 
 def postprocessing_cor_id(cor_id):
     # var = y_bon_[0][:-1] - y_bon_[0][1:]
@@ -271,7 +297,7 @@ def vis_3d(points, faces, cor_id):
     draw_geometries.append(wf_line_set)
 
     o3d.visualization.draw_geometries(draw_geometries, mesh_show_back_face=True) 
-       
+
 def infer(rgb):
     # Run inference
     with torch.no_grad():                
@@ -376,7 +402,34 @@ def infer(rgb):
         faces = np.concatenate([faces_lo_tri, faces_up_tri, faces_ma_tri])      
 
     return points, xyzrgb, faces, cor_id, y_cor_, y_bon_, us, vs, xs, ys, zs
-  
+
+def registry_points(spot, door_list, points_list):
+    pair = spot['pair']
+    # make regex for room number
+    n = re.compile(r'\d+')
+    # make regex for direction
+    s = re.compile(r'[A-Z]+')
+    # doors(Type:List) : list() for src and ref door
+    doors = [] 
+
+    for location in pair:
+        # match room number and direction regarding regex
+        room = n.match(location)
+        direction = s.match(location)
+        for door in door_list:
+            if door['room'] == room and door['direction'] == direction:
+                doors.append(door)
+                break
+        src = doors[0]
+        ref = doors[1]
+
+        src = transition(src, ref)
+        src = rotate(src, ref)
+
+def geometric_registraion(localization_json, door_list, points_list):
+    for spot in localization_json:
+        registry_points(spot, door_list, points_list)
+
 if __name__ == '__main__':
     # Parse args & config
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -416,6 +469,7 @@ if __name__ == '__main__':
                  {'id': 2, 'room': 1, 'door_point': np.array([295, 960]), 'direction': 'B'},
                  {'id': 3, 'room': 2, 'door_point': np.array([295, 727]), 'direction': 'R'}]
     idx = 0
+
     for path in tqdm(rgb_lst):
         fname = os.path.splitext(os.path.split(path)[1])[0]
         print(f"\n({idx}th image) {fname} is loaded......")
@@ -465,14 +519,7 @@ if __name__ == '__main__':
         idx += 1 
     
     
-    # @@@@@@@@@@@@@@@@@@@@@@ Here @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    src, ref = 2, 0
-    points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
-    points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src])
-       
-    src, ref = 1, 0
-    points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[2])
-    points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[2],  points_list[2])            
+    geometric_registraion(localization_json, door_list, points_list)       
         
     total =  [points_list[i] for i in range(len(points_list))]
     regit_xyzrgb = np.concatenate(total, axis=1) 

@@ -19,6 +19,19 @@ from scipy.ndimage import shift
 from lib.misc.post_proc import np_coor2xy, np_coorx2u, np_coory2v
 from eval_layout import layout_2_depth
 
+# Database
+door_list = [
+    {'id': 0, 'room': 0, 'door_point': (290,339), 'direction': 'L'},
+    {'id': 1, 'room': 0, 'door_point': (290,526), 'direction': 'F'},
+    {'id': 2, 'room': 1, 'door_point': (295,960), 'direction': 'B'},
+    {'id': 3, 'room': 2, 'door_point': (295,727), 'direction': 'R'},
+]
+
+Localization = [
+    {'spot': 0, 'pair': ('0R', '2R')},
+    {'spot': 1, 'pair': ('0L', '1B')},
+]
+
 def get_vertices(cor_id, xs, ys, zs):
     cor_id = cor_id.tolist()
     points = np.empty((0, 3))
@@ -397,6 +410,11 @@ if __name__ == '__main__':
     door_xyz_list = []
     door_normal_list = []
 
+    # for문 밖에서 door_list 선언
+    door_list = [{'id': 0, 'room': 0, 'door_point': np.array([290, 339]), 'direction': 'L'},
+                 {'id': 1, 'room': 0, 'door_point': np.array([290, 526]), 'direction': 'F'},
+                 {'id': 2, 'room': 1, 'door_point': np.array([295, 960]), 'direction': 'B'},
+                 {'id': 3, 'room': 2, 'door_point': np.array([295, 727]), 'direction': 'R'}]
     idx = 0
     for path in tqdm(rgb_lst):
         fname = os.path.splitext(os.path.split(path)[1])[0]
@@ -406,7 +424,7 @@ if __name__ == '__main__':
         rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
                
         # @@@ TODO @@@ 1. Door segmentation @@@@@
-        door_list = np.array([[290, 526],[295, 960],[295, 727]])
+        
         # door_left_up = (490, 247)
         # door_right_up =(522, 247)       
         # door_left_dw = (490, 332)    
@@ -454,16 +472,7 @@ if __name__ == '__main__':
        
     src, ref = 1, 0
     points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[2])
-    points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[2],  points_list[2])    
-    
-    # src, ref = 0, 2
-    # points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
-    # points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src]) 
-        
-    # src, ref = 3, 2
-    # points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
-    # points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src]) 
-        
+    points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[2],  points_list[2])            
         
     total =  [points_list[i] for i in range(len(points_list))]
     regit_xyzrgb = np.concatenate(total, axis=1) 
