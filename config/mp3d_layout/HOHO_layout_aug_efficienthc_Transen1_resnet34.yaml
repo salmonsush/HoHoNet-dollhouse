@@ -1,5 +1,5 @@
 ckpt_root: ckpt
-cuda: True
+cuda: False
 num_workers: 8
 
 dataset:

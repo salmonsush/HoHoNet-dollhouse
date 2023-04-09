@@ -4,8 +4,8 @@ from yacs.config import CfgNode as CN
 config = CN()
 
 config.ckpt_root = 'ckpt'
-config.cuda = True
-config.cuda_benchmark = True
+config.cuda = False
+config.cuda_benchmark = False
 config.num_workers = 8
 
 config.dataset = CN()

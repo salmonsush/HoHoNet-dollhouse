@@ -1,0 +1,10 @@
+!pip install open3d -q
+!pip install Pillow==9.0.0 -q
+!pip install yacs -q
+!pip install gdown -q
+!pip install plotly -q
+!pip install torch torchvision
+!pip install matplotlib -q
+!pip install opencv-python -q
+!pip install scipy -q
+!pip install tqdm == 4.41.1 -q
