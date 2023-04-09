@@ -42,7 +42,7 @@ def Getdoor(x, y, points):
     v2 = xyz[1,0] - xyz[0,0]
     normal = np.cross(v1[:3], v2[:3])
     normal = normal / np.linalg.norm(normal)
-    return normal
+    return xyz[0,0], normal
 
 def transition(src, ref):
     # 방 번호
@@ -81,8 +81,8 @@ def rotate(src, ref):
     ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
 
     # 법선 벡터
-    src_normal = Getdoor(src_xy[0], src_xy[1], points_list[src_room])
-    ref_normal = Getdoor(ref_xy[0], ref_xy[1], points_list[ref_room])
+    _, src_normal = Getdoor(src_xy[0], src_xy[1], points_list[src_room])
+    _, ref_normal = Getdoor(ref_xy[0], ref_xy[1], points_list[ref_room])
     
     # Define the vectors
     ref_normal = -ref_normal
@@ -507,7 +507,12 @@ if __name__ == '__main__':
     
     
     geometric_registraion(localization_json, door_list, points_list)       
-        
+    
+    # Code for visualization of normal vectors.
+    for door in door_list:
+        visaul_normal = Getdoor(door['door_point'][0], door['door_point'][1], points_list[door['room']][:,:,:3])
+
+
     total =  [points_list[i] for i in range(len(points_list))]
     regit_xyzrgb = np.concatenate(total, axis=1) 
     # @@@@@@@@@@@@@@@@@@@@@@ Here @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
