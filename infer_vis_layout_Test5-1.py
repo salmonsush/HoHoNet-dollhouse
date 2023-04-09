@@ -31,8 +31,8 @@ door_list = [
 ]
 
 localization_json = [
-    {'spot': 0, 'pair': ('0L', '2R')},
-    {'spot': 1, 'pair': ('0F', '1B')},
+    {'spot': 1, 'pair': ('1B', '0F')},
+    {'spot': 0, 'pair': ('2R', '0L')}
 ]
 
 def Getdoor(x, y, points):
@@ -405,7 +405,8 @@ def registry_points(spot, door_list, points_list):
                 break
     src = doors[0]
     ref = doors[1]
-
+    
+    # 실질적으로 points_list를 변경하는 함수
     src = transition(src, ref)
     src = rotate(src, ref)
 
@@ -424,6 +425,7 @@ if __name__ == '__main__':
                         help='Modify config options using the command-line',
                         default=None, nargs=argparse.REMAINDER)
     args = parser.parse_args()
+
     update_config(config, args)
     device = 'cpu'
     print(torch.cuda.is_available())
@@ -505,23 +507,46 @@ if __name__ == '__main__':
 
         idx += 1 
     
-    
+    # 문 위치와 방향 맞추는 함수
     geometric_registraion(localization_json, door_list, points_list)       
     
-    # Code for visualization of normal vectors.
+    # create empy list for visualization of vectors
+    o3dLines = []
+
     for door in door_list:
-        visaul_normal = Getdoor(door['door_point'][0], door['door_point'][1], points_list[door['room']][:,:,:3])
+        visual_pos, visaul_normal = Getdoor(door['door_point'][0], door['door_point'][1], points_list[door['room']][:,:,:3])
+
+        # Create a line geometry from the vector
+        line_set = o3d.geometry.LineSet()
+        # Set the points of the line set to be the starting point and the endpoint of the vector
+        line_set.points = o3d.utility.Vector3dVector(np.array([visual_pos, visual_pos+ visaul_normal*0.1]))
+        line_set.lines = o3d.utility.Vector2iVector(np.array([[0, 1]]))
+
+        # Set the color of the line to be red
+        line_set.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0]]))
+        # Add the line to the list of lines
+        o3dLines.append(line_set)
+
+    
 
 
     total =  [points_list[i] for i in range(len(points_list))]
     regit_xyzrgb = np.concatenate(total, axis=1) 
-    # @@@@@@@@@@@@@@@@@@@@@@ Here @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-   
-    
-    
+
+
+    '''
     pcd = o3d.geometry.PointCloud()
     np_points = regit_xyzrgb[:,:,:3].reshape(-1, 3)
     np_colors = regit_xyzrgb[:,:,3:].reshape(-1, 3)/255
+    '''
+    # eliminate top points
+    z = regit_xyzrgb[:,:,2]
+    max_z = np.max(z)
+    regit_xyzrgb = regit_xyzrgb[z < (max_z - 0.27)]
+    
+    pcd = o3d.geometry.PointCloud()
+    np_points = regit_xyzrgb[:,:3].reshape(-1, 3)
+    np_colors = regit_xyzrgb[:,3:].reshape(-1, 3)/255
     
     pcd.points = o3d.utility.Vector3dVector(np_points)
     pcd.colors = o3d.utility.Vector3dVector(np_colors)  
@@ -530,7 +555,7 @@ if __name__ == '__main__':
     
     
     
-    o3d.visualization.draw_geometries([pcd])
+    o3d.visualization.draw_geometries([pcd] + o3dLines)
     # @@@ TODO @@@ 3. camera localization @@@@@
 
         
