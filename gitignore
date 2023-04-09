@@ -1,2 +1,4 @@
 ckpt/
 assets/006/
+*.ply
+*.png
