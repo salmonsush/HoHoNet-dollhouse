@@ -31,35 +31,18 @@ door_list = [
 ]
 
 localization_json = [
-    {'spot': 0, 'pair': ('0R', '2R')},
-    {'spot': 1, 'pair': ('0L', '1B')},
+    {'spot': 0, 'pair': ('0L', '2R')},
+    {'spot': 1, 'pair': ('0F', '1B')},
 ]
 
 def Getdoor(x, y, points):
     xyz = points[x-1:x+1, y-1:y+1]
     
-    # door_coorx = xs[x, y]
-    # door_coory = ys[x, y]
-    # door_coorz = zs[x, y]
-    # vertex_i = np.array([door_coorx, door_coory, door_coorz])
-
-    # door_coorx = xs[x, y-1]
-    # door_coory = ys[x, y-1]
-    # door_coorz = zs[x, y-1]
-    # vertex_j = np.array([door_coorx, door_coory, door_coorz])
-
-    # door_coorx = xs[x+1, y]
-    # door_coory = ys[x+1, y]
-    # door_coorz = zs[x+1, y]
-    # vertex_k = np.array([door_coorx, door_coory, door_coorz])
-
-    # door_coorx, door_coory, door_coorz = vertex_i
-
     v1 = xyz[0,1] - xyz[0,0]
     v2 = xyz[1,0] - xyz[0,0]
-    normal = np.cross(v1, v2)
+    normal = np.cross(v1[:3], v2[:3])
     normal = normal / np.linalg.norm(normal)
-    return xyz[0,0], normal
+    return normal
 
 def transition(src, ref):
     # 방 번호
@@ -67,12 +50,12 @@ def transition(src, ref):
     ref_room = ref['room']
 
     # 2차원 좌표
-    src_xy = src['door_point']
-    ref_xy = ref['door_point']
+    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 이중 네스트된 배열로 인덱싱을 시도해 에러가 난다.
+    ref_xy = tuple(ref['door_point'])
 
     # 3차원 좌표
-    src_xyz = [points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]]
-    ref_xyz = [points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]]
+    src_xyz = np.array([points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]])
+    ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
     print("[Transition] Original src_xyz:", src_xyz)
     print("[Transition] Original ref_xyz:", ref_xyz)
     
@@ -82,7 +65,7 @@ def transition(src, ref):
     src_xyz = src_xyz + trans_matrix
     print("[Transition] Translated src_xyz:", src_xyz)
 
-    return None
+    return src
 
 def rotate(src, ref):
     # 방 번호
@@ -90,12 +73,12 @@ def rotate(src, ref):
     ref_room = ref['room']
 
     # 2차원 좌표
-    src_xy = src['door_point']
-    ref_xy = ref['door_point']
+    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 이중 네스트된 배열로 인덱싱을 시도해 에러가 난다.
+    ref_xy = tuple(ref['door_point'])
 
     # 3차원 좌표
-    src_xyz = [points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]]
-    ref_xyz = [points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]]
+    src_xyz = np.array([points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]])
+    ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
 
     # 법선 벡터
     src_normal = Getdoor(src_xy[0], src_xy[1], points_list[src_room])
@@ -139,7 +122,7 @@ def rotate(src, ref):
     # Rotate points2 to be the same orientation as points1
     points_list[src_room][:,:,:3] = np.dot(points_list[src_room][:,:,:3], rotation_matrix)
 
-    return None
+    return src
 
 def postprocessing_cor_id(cor_id):
     # var = y_bon_[0][:-1] - y_bon_[0][1:]
@@ -414,17 +397,17 @@ def registry_points(spot, door_list, points_list):
 
     for location in pair:
         # match room number and direction regarding regex
-        room = n.match(location)
-        direction = s.match(location)
+        room = n.match(str(location)) # match는 처음부터 일치하는지 확인해서 첫문자부터 다르면 None 반환
+        direction = s.search(str(location)) # search는 일치하는 문자열이 있으면 반환 전체 정답 반환
         for door in door_list:
-            if door['room'] == room and door['direction'] == direction:
+            if str(door['room']) == room.group(0) and door['direction'] == direction.group(0):
                 doors.append(door)
                 break
-        src = doors[0]
-        ref = doors[1]
+    src = doors[0]
+    ref = doors[1]
 
-        src = transition(src, ref)
-        src = rotate(src, ref)
+    src = transition(src, ref)
+    src = rotate(src, ref)
 
 def geometric_registraion(localization_json, door_list, points_list):
     for spot in localization_json:
@@ -504,17 +487,21 @@ if __name__ == '__main__':
         # save txt
         save_txt(cor_id, y_cor_, y_bon_, args, fname)
         # save_image and plt.show()
-        save_img(rgb, cor_id, y_bon_, y_cor_, args, fname)
+
+
+        # 잠시만 주석처리
+        # save_img(rgb, cor_id, y_bon_, y_cor_, args, fname)
+        
         # # visualize
         # vis_3d(points, faces, cor_id)
         
         # @@@@@@ 3. Door Loacalization
         # points1 = get_vertices(cor_id, xs, ys, zs)
-        door_xyz, door_normal = Getdoor(door_list[idx,0], door_list[idx,1], xyzrgb[:,:,:3])
+        # door_xyz, door_normal = Getdoor(door_list[idx,0], door_list[idx,1], xyzrgb[:,:,:3])
         
-        door_normal_list.append(door_normal)
+        # door_normal_list.append(door_normal)
         points_list.append(xyzrgb)
-        door_xyz_list.append(door_xyz)
+        # door_xyz_list.append(door_xyz)
 
         idx += 1 
     
