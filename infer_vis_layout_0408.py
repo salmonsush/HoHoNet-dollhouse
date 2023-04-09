@@ -362,7 +362,7 @@ def infer(rgb):
         ], 1)
         faces = np.concatenate([faces_lo_tri, faces_up_tri, faces_ma_tri])      
 
-    return points, xyzrgb, faces, cor_id, y_cor_, y_bon_, us, vs, xs, ys, vs
+    return points, xyzrgb, faces, cor_id, y_cor_, y_bon_, us, vs, xs, ys, zs
   
 if __name__ == '__main__':
     # Parse args & config
@@ -406,7 +406,7 @@ if __name__ == '__main__':
         rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
                
         # @@@ TODO @@@ 1. Door segmentation @@@@@
-        door_list = np.array([[290, 526],[295, 960],[295, 960], [295, 960]])
+        door_list = np.array([[290, 526],[295, 960],[295, 727]])
         # door_left_up = (490, 247)
         # door_right_up =(522, 247)       
         # door_left_dw = (490, 332)    
@@ -448,24 +448,24 @@ if __name__ == '__main__':
     
     
     # @@@@@@@@@@@@@@@@@@@@@@ Here @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    src, ref = 0, 1
+    src, ref = 2, 0
     points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
     points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src])
        
-    src, ref = 2, 1
+    src, ref = 1, 0
     points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[2])
     points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[2],  points_list[2])    
     
-    src, ref = 0, 2
-    points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
-    points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src]) 
+    # src, ref = 0, 2
+    # points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
+    # points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src]) 
         
-    src, ref = 3, 2
-    points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
-    points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src]) 
+    # src, ref = 3, 2
+    # points_list[src], door_xyz_list[src] = transition(door_xyz_list[ref], door_xyz_list[src], points_list[src])
+    # points_list[src], door_normal_list[src] = rotate(door_normal_list[ref], door_normal_list[src],  points_list[src]) 
         
         
-    total =  [points_l ist[i] for i in range(len(points_list))]
+    total =  [points_list[i] for i in range(len(points_list))]
     regit_xyzrgb = np.concatenate(total, axis=1) 
     # @@@@@@@@@@@@@@@@@@@@@@ Here @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
    
