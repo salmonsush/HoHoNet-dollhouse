@@ -27,7 +27,7 @@ door_list = [
     {'id': 0, 'room': 0, 'door_point': (290,339), 'direction': 'L'},
     {'id': 1, 'room': 0, 'door_point': (290,526), 'direction': 'F'},
     {'id': 2, 'room': 1, 'door_point': (295,960), 'direction': 'B'},
-    {'id': 3, 'room': 2, 'door_point': (295,727), 'direction': 'R'},
+    {'id': 3, 'room': 2, 'door_point': (300,727), 'direction': 'R'},
 ]
 
 localization_json = [
@@ -73,7 +73,7 @@ def rotate(src, ref):
     ref_room = ref['room']
 
     # 2차원 좌표
-    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 이중 네스트된 배열로 인덱싱을 시도해 에러가 난다.
+    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 기본적으로 이중 네스트된 넘파이 배열로 인덱싱을 시도해 에러가 난다.
     ref_xy = tuple(ref['door_point'])
 
     # 3차원 좌표
@@ -527,20 +527,45 @@ if __name__ == '__main__':
         # Add the line to the list of lines
         o3dLines.append(line_set)
 
+
+    # total =  [points_list[i] for i in range(len(points_list))]
     
+    def cut_flaws(points, threshhold=0.33):
+        room_points = points_list[0]
+        x = points[:,:,0]
+        max_x = np.max(x)
+
+        # eliminate far points
+        points = points[x < (max_x - threshhold)]
 
 
-    total =  [points_list[i] for i in range(len(points_list))]
-    regit_xyzrgb = np.concatenate(total, axis=1) 
+        # visualize
+        np_points = points[:,:3].reshape(-1, 3)
+        np_colors = points[:,3:].reshape(-1, 3)/255
+        
+        
+        room = o3d.geometry.PointCloud()
+        room.points = o3d.utility.Vector3dVector(np_points)
+        room.colors = o3d.utility.Vector3dVector(np_colors)  
+        # return room
+        return points
+    
+    room1 = cut_flaws(points_list[0])
+    room2 = cut_flaws(points_list[2], threshhold=1.9)
+    points_reshape = points_list[1].reshape(-1, 6)
 
+    # o3d.visualization.draw_geometries([room1, room2])
+    total = [room1, room2, points_reshape]
+    regit_xyzrgb = np.concatenate(total, axis=0) 
 
     '''
     pcd = o3d.geometry.PointCloud()
     np_points = regit_xyzrgb[:,:,:3].reshape(-1, 3)
     np_colors = regit_xyzrgb[:,:,3:].reshape(-1, 3)/255
     '''
+
     # eliminate top points
-    z = regit_xyzrgb[:,:,2]
+    z = regit_xyzrgb[:,2]
     max_z = np.max(z)
     regit_xyzrgb = regit_xyzrgb[z < (max_z - 0.27)]
     
