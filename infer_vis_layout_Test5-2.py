@@ -37,7 +37,7 @@ door_list = [
 # src, ref : (변할것, 고정할것)
 localization_json = [
     {'spot': 1, 'pair': ('1B', '0F')},
-    {'spot': 0, 'pair': ('2R', '0L')}
+    {'spot': 0, 'pair': ('2R', '0L')}    
 ]
 
 
@@ -245,7 +245,7 @@ def rotate(src, ref):
 
     return src
 
-def postprocessing(y_cor_, cor_id):
+def postprocessing(y_bon_, y_cor_, cor_id):
     """
     cor_id와 y_cor의 극댓값들을 비교하여 오차가 가장 적은 극댓값들로 cor_id의 x좌표를 수정한다. 
     """
@@ -275,37 +275,44 @@ def postprocessing(y_cor_, cor_id):
     
 
 
-    for i in range(int(len(cor_id)/2)):
-        diff = abs(cor_id[2*i, 0] - local_maxima[i])
-        if min(1025-diff, diff) < value_threshold:
-            cor_id[2*i][0] = local_maxima[i]
-            cor_id[2*i+1][0] = local_maxima[i]        
-        else:
-            # find the next local maximum that is close to cor_id[i]. But when it's fail, move to next cor_id.
-            for j in range(i+1, len(local_maxima)):
-                find = False
-                if abs(cor_id[2*i, 0] - local_maxima[j]) < value_threshold:
-                    cor_id[2*i][0] = local_maxima[i]
-                    cor_id[2*i+1][0] = local_maxima[i]        
-                    find = True
-                    break
-                else:
-                    # if it's fail, get the mean value of the local maxima between that cor_id and the next cor_id.
-                    pass
+    # cor_id의 x좌표와 극댓값 중 cor_id 인덱스 근처 인덱스(transfer)를 비교하여 오차가 가장 적은 극댓값으로 cor_id의 x좌표를 수정한다.
+    # padding : 극댓값이 cor_id보다 많은 정도
+    padding = len(local_maxima) - int(len(cor_id)/2)
 
-            if not find:
-                mask = (cor_id[2*i, 0] < local_maxima) & (local_maxima < cor_id[2*(i+1), 0])
-                local_maxima_ = local_maxima[mask]
-                if len(local_maxima_) == 0:
-                    cor_id[2*i][0] = local_maxima[i]
-                    cor_id[2*i+1][0] = local_maxima[i]        
+    # deform : 극댓값 점프 개수
+    deform = 0
+    
+    # transfer : i와 nearest_idx의 차이. 곧 deform(인덱스 점프)의 여유분을 의미한다.
+    transfer = padding
 
-                else:
-                    cor_id[2*i, 0] = np.mean(local_maxima_)
-                    cor_id[2*i+1, 0] = np.mean(local_maxima_)
+    if padding == 0:
+        # Handle the case where transfer is zero
+        for i in range(int(len(cor_id)/2)):
+            # nearest_idx = np.argmin(np.abs(local_maxima[i:i+transfer+1] - cor_id[2*i, 0])) + i  # find the index of nearest local maximum
+            nearest_point = local_maxima[i]
+            cor_id[2*i][0] = nearest_point
+            cor_id[2*i+1][0] = nearest_point
+    else:
+        # Handle the case where transfer is not zero
+        for i in range(int(len(cor_id)/2)):
+            nearest_idx = np.argmin(np.abs(local_maxima[deform+i:i+transfer+2] - cor_id[2*i, 0])) + i+deform  # find the index of nearest local maximum
+            nearest_point = local_maxima[nearest_idx]
+            cor_id[2*i][0] = nearest_point
+            cor_id[2*i+1][0] = nearest_point
+            # local_maxima = np.delete(local_maxima, nearest_idx)  # remove the local maximum that is already used
 
-
-
+            if nearest_idx-i != deform:
+                diff = nearest_idx - i
+                deform = deform + diff
+                transfer = padding - deform
+            else:
+                pass
+    
+    # change y of cor_id to the y_bon value of same index. y_bon is shape of 1025,2. so it has two lines, upper line and lower line. The lower one matches to 2*i and the upper one matches to 2*i+1.
+    # for i in range(int(len(cor_id)/2)):
+    #     cor_id[2*i][1] = y_bon_[0][int(cor_id[2*i][0])]
+    #     cor_id[2*i+1][1] = y_bon_[1][int(cor_id[2*i+1][0])]
+            
     # show the result
     print("changed cor_id: ", cor_id)
 
@@ -379,7 +386,7 @@ def infer(rgb):
         
         
         # @@@@ TODO @@@@@@@@@@@@@@@@@@@@@@@@ POST PROCESSING - cor_id @@@@@@@@@@@@@@@@@@@@@@@@
-        cor_id = postprocessing(y_cor_, cor_id)
+        cor_id = postprocessing(y_bon_, y_cor_, cor_id)
         # @@@@ TODO @@@@@@@@@@@@@@@@@@@@@@@@ POST PROCESSING - cor_id @@@@@@@@@@@@@@@@@@@@@@@@
 
 
@@ -559,7 +566,7 @@ if __name__ == '__main__':
 
 
         # 잠시만 주석처리
-        # save_img(rgb, cor_id, y_bon_, y_cor_, args, fname)
+        save_img(rgb, cor_id, y_bon_, y_cor_, args, fname)
         
         # # visualize
         # vis_3d(points, faces, cor_id)
