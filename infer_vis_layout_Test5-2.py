@@ -1,3 +1,7 @@
+'''
+Test5-2 모서리 정확도 향상 
+'''
+
 # for infer_layout
 import os, sys, time, glob
 import argparse
@@ -30,148 +34,12 @@ door_list = [
     {'id': 3, 'room': 2, 'door_point': (300,727), 'direction': 'R'},
 ]
 
+# src, ref : (변할것, 고정할것)
 localization_json = [
     {'spot': 1, 'pair': ('1B', '0F')},
     {'spot': 0, 'pair': ('2R', '0L')}
 ]
 
-def Getdoor(x, y, points):
-    xyz = points[x-1:x+1, y-1:y+1]
-    
-    v1 = xyz[0,1] - xyz[0,0]
-    v2 = xyz[1,0] - xyz[0,0]
-    normal = np.cross(v1[:3], v2[:3])
-    normal = normal / np.linalg.norm(normal)
-    return xyz[0,0], normal
-
-def transition(src, ref):
-    # 방 번호
-    src_room = src['room']
-    ref_room = ref['room']
-
-    # 2차원 좌표
-    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 이중 네스트된 배열로 인덱싱을 시도해 에러가 난다.
-    ref_xy = tuple(ref['door_point'])
-
-    # 3차원 좌표
-    src_xyz = np.array([points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]])
-    ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
-    print("[Transition] src_room:", src_room, "ref_room:", ref_room)
-    print("[Transition] Original src_xyz:", src_xyz)
-    print("[Transition] Original ref_xyz:", ref_xyz)
-    
-    # 이동행렬
-    trans_matrix = ref_xyz - src_xyz
-    points_list[src_room][:,:,:3] = points_list[src_room][:,:,:3] + trans_matrix
-    src_xyz = src_xyz + trans_matrix
-    print("[Transition] Translated src_xyz:", src_xyz)
-
-    return src
-
-def rotate(src, ref):
-    # 방 번호
-    src_room = src['room']
-    ref_room = ref['room']
-
-    # 2차원 좌표
-    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 기본적으로 이중 네스트된 넘파이 배열로 인덱싱을 시도해 에러가 난다.
-    ref_xy = tuple(ref['door_point'])
-
-    # 3차원 좌표
-    src_xyz = np.array([points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]])
-    ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
-
-    # 법선 벡터
-    _, src_normal = Getdoor(src_xy[0], src_xy[1], points_list[src_room])
-    _, ref_normal = Getdoor(ref_xy[0], ref_xy[1], points_list[ref_room])
-    
-    # Define the vectors
-    ref_normal = -ref_normal
-    # Calculate the cross product between the two vectors
-    cross_product = np.cross(ref_normal, src_normal)
-
-    # Calculate the dot product between the two vectors
-    dot_product = np.dot(ref_normal, src_normal)
-
-    # Calculate the norm of the cross product
-    cross_norm = np.linalg.norm(cross_product)
-
-    # Calculate the rotation angle
-    angle = np.arctan2(cross_norm, dot_product)
-
-    # Calculate the rotation axis
-    axis = cross_product / cross_norm
-
-    # Create the rotation matrix
-    rotation_matrix = np.array([[np.cos(angle) + axis[0]**2*(1-np.cos(angle)), 
-                                axis[0]*axis[1]*(1-np.cos(angle)) - axis[2]*np.sin(angle), 
-                                axis[0]*axis[2]*(1-np.cos(angle)) + axis[1]*np.sin(angle)],
-                                [axis[1]*axis[0]*(1-np.cos(angle)) + axis[2]*np.sin(angle), 
-                                np.cos(angle) + axis[1]**2*(1-np.cos(angle)), 
-                                axis[1]*axis[2]*(1-np.cos(angle)) - axis[0]*np.sin(angle)],
-                                [axis[2]*axis[0]*(1-np.cos(angle)) - axis[1]*np.sin(angle), 
-                                axis[2]*axis[1]*(1-np.cos(angle)) + axis[0]*np.sin(angle), 
-                                np.cos(angle) + axis[2]**2*(1-np.cos(angle))]])
-
-    # Apply the rotation matrix to vector2
-    new_vector2 = np.dot(rotation_matrix, src_normal)
-
-    print("[Rotation] Original vector1:", ref_normal)
-    print("[Rotation] Original vector2:", src_normal)
-    print("[Rotation] Rotated vector2:", new_vector2)
-
-    # Rotate points2 to be the same orientation as points1
-    points_list[src_room][:,:,:3] = np.dot(points_list[src_room][:,:,:3], rotation_matrix)
-
-    return src
-
-def postprocessing_cor_id(y_cor):
-    """
-    cor_id와 y_cor의 극댓값들을 비교하여 오차가 가장 적은 극댓값들로 cor_id의 x좌표를 수정한다. 
-    """
-
-    
-    # var = y_bon_[0][:-1] - y_bon_[0][1:]
-    # plt.plot(range(len(var)), var)
-    # plt.show()
-
-    # empty_rgb = np.zeros_like(rgb, np.float32)
-    
-    # x_coord = np.arange(y_bon_.shape[1])
-    # y_coord_ceil = y_bon_[0].astype(int)
-    # y_coord_floor = y_bon_[1].astype(int)
-    # empty_rgb[y_coord_ceil, x_coord] = [255,255,255]
-    # empty_rgb[y_coord_floor, x_coord] = [255,255,255]
-    
-    # img = empty_rgb
-    # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # gray = np.float32(gray)
-    
-    # # @@ method 1 -> fail @@@
-    # # dst = cv2.cornerHarris(gray,5,3,0.04)
-    # # ret, dst = cv2.threshold(dst,0.1*dst.max(),255,0)
-    # # dst = np.uint8(dst)
-    # # ret, labels, stats, centroids = cv2.connectedComponentsWithStats(dst)
-    # # criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
-    # # corners = cv2.cornerSubPix(gray,np.float32(centroids),(5,5),(-1,-1),criteria)
-    # # for i in range(1, len(corners)):
-    # #     print(corners[i])
-    # # img[dst>0.1*dst.max()]=[0,255,255]
-    
-    # # @@ method 2 -> fail @@@
-    # # detect corners with the goodFeaturesToTrack function.
-    # corners = cv2.goodFeaturesToTrack(gray, 27, 0.01, 10)
-    # corners = np.int0(corners)
-    # # we iterate through each corner, 
-    # # making a circle at each point that we think is a corner.
-    # for i in corners:
-    #     x, y = i.ravel()
-    #     cv2.circle(img, (x, y), 3, 255, -1)
-    
-    # cv2.imshow('image', img)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows    
-    # return cor_id
 
 def save_txt(cor_id, y_cor_, y_bon_, args, fname):
     # save .txt
@@ -287,6 +155,205 @@ def vis_3d(points, faces, cor_id):
 
     o3d.visualization.draw_geometries(draw_geometries, mesh_show_back_face=True) 
 
+def Getdoor(x, y, points):
+    xyz = points[x-1:x+1, y-1:y+1]
+    
+    v1 = xyz[0,1] - xyz[0,0]
+    v2 = xyz[1,0] - xyz[0,0]
+    normal = np.cross(v1[:3], v2[:3])
+    normal = normal / np.linalg.norm(normal)
+    return xyz[0,0], normal
+
+def transition(src, ref):
+    # 방 번호
+    src_room = src['room']
+    ref_room = ref['room']
+
+    # 2차원 좌표
+    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 이중 네스트된 배열로 인덱싱을 시도해 에러가 난다.
+    ref_xy = tuple(ref['door_point'])
+
+    # 3차원 좌표
+    src_xyz = np.array([points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]])
+    ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
+    print("[Transition] src_room:", src_room, "ref_room:", ref_room)
+    print("[Transition] Original src_xyz:", src_xyz)
+    print("[Transition] Original ref_xyz:", ref_xyz)
+    
+    # 이동행렬
+    trans_matrix = ref_xyz - src_xyz
+    points_list[src_room][:,:,:3] = points_list[src_room][:,:,:3] + trans_matrix
+    src_xyz = src_xyz + trans_matrix
+    print("[Transition] Translated src_xyz:", src_xyz)
+
+    return src
+
+def rotate(src, ref):
+    # 방 번호
+    src_room = src['room']
+    ref_room = ref['room']
+
+    # 2차원 좌표
+    src_xy = tuple(src['door_point']) # tuple로 변환해주지 않으면, 기본적으로 이중 네스트된 넘파이 배열로 인덱싱을 시도해 에러가 난다.
+    ref_xy = tuple(ref['door_point'])
+
+    # 3차원 좌표
+    src_xyz = np.array([points_list[src_room][src_xy][0], points_list[src_room][src_xy][1], points_list[src_room][src_xy][2]])
+    ref_xyz = np.array([points_list[ref_room][ref_xy][0], points_list[ref_room][ref_xy][1], points_list[ref_room][ref_xy][2]])
+
+    # 법선 벡터
+    _, src_normal = Getdoor(src_xy[0], src_xy[1], points_list[src_room])
+    _, ref_normal = Getdoor(ref_xy[0], ref_xy[1], points_list[ref_room])
+    
+    # Define the vectors
+    ref_normal = -ref_normal
+    # Calculate the cross product between the two vectors
+    cross_product = np.cross(ref_normal, src_normal)
+
+    # Calculate the dot product between the two vectors
+    dot_product = np.dot(ref_normal, src_normal)
+
+    # Calculate the norm of the cross product
+    cross_norm = np.linalg.norm(cross_product)
+
+    # Calculate the rotation angle
+    angle = np.arctan2(cross_norm, dot_product)
+
+    # Calculate the rotation axis
+    axis = cross_product / cross_norm
+
+    # Create the rotation matrix
+    rotation_matrix = np.array([[np.cos(angle) + axis[0]**2*(1-np.cos(angle)), 
+                                axis[0]*axis[1]*(1-np.cos(angle)) - axis[2]*np.sin(angle), 
+                                axis[0]*axis[2]*(1-np.cos(angle)) + axis[1]*np.sin(angle)],
+                                [axis[1]*axis[0]*(1-np.cos(angle)) + axis[2]*np.sin(angle), 
+                                np.cos(angle) + axis[1]**2*(1-np.cos(angle)), 
+                                axis[1]*axis[2]*(1-np.cos(angle)) - axis[0]*np.sin(angle)],
+                                [axis[2]*axis[0]*(1-np.cos(angle)) - axis[1]*np.sin(angle), 
+                                axis[2]*axis[1]*(1-np.cos(angle)) + axis[0]*np.sin(angle), 
+                                np.cos(angle) + axis[2]**2*(1-np.cos(angle))]])
+
+    # Apply the rotation matrix to vector2
+    new_vector2 = np.dot(rotation_matrix, src_normal)
+
+    print("[Rotation] Original vector1:", ref_normal)
+    print("[Rotation] Original vector2:", src_normal)
+    print("[Rotation] Rotated vector2:", new_vector2)
+
+    # Rotate points2 to be the same orientation as points1
+    points_list[src_room][:,:,:3] = np.dot(points_list[src_room][:,:,:3], rotation_matrix)
+
+    return src
+
+def postprocessing(y_cor_, cor_id):
+    """
+    cor_id와 y_cor의 극댓값들을 비교하여 오차가 가장 적은 극댓값들로 cor_id의 x좌표를 수정한다. 
+    """
+    from scipy.signal import argrelextrema
+    import csv
+
+    # Find local maxima
+    local_maxima = argrelextrema(y_cor_, np.greater, order=5)
+
+    # Print the local maxima
+    print("Local maxima:", local_maxima)
+    print("cor_id: ", cor_id)
+    # save y_cor1 as a csv file
+    with open(f'y_cor{idx}.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        for row in y_cor_:
+            writer.writerow([row])
+    f.close()
+
+    # filter out the local maximas that has low value
+    mask = y_cor_[local_maxima] > 0.55
+    local_maxima = local_maxima[0][mask]
+    print("Filtered local maxima:", local_maxima)
+    
+    # change x of cor_id to the local maximum of same index. But when the difference is too big, hold that local maximum and move to the next one. If the difference is still too big, hold that local maximum and move to the next one, recursively. If it never finds the right maximum value, get the mean value of the local maxima between that cor_id and the next cor_id.
+    value_threshold = 40
+    
+
+
+    for i in range(int(len(cor_id)/2)):
+        diff = abs(cor_id[2*i, 0] - local_maxima[i])
+        if min(1025-diff, diff) < value_threshold:
+            cor_id[2*i][0] = local_maxima[i]
+            cor_id[2*i+1][0] = local_maxima[i]        
+        else:
+            # find the next local maximum that is close to cor_id[i]. But when it's fail, move to next cor_id.
+            for j in range(i+1, len(local_maxima)):
+                find = False
+                if abs(cor_id[2*i, 0] - local_maxima[j]) < value_threshold:
+                    cor_id[2*i][0] = local_maxima[i]
+                    cor_id[2*i+1][0] = local_maxima[i]        
+                    find = True
+                    break
+                else:
+                    # if it's fail, get the mean value of the local maxima between that cor_id and the next cor_id.
+                    pass
+
+            if not find:
+                mask = (cor_id[2*i, 0] < local_maxima) & (local_maxima < cor_id[2*(i+1), 0])
+                local_maxima_ = local_maxima[mask]
+                if len(local_maxima_) == 0:
+                    cor_id[2*i][0] = local_maxima[i]
+                    cor_id[2*i+1][0] = local_maxima[i]        
+
+                else:
+                    cor_id[2*i, 0] = np.mean(local_maxima_)
+                    cor_id[2*i+1, 0] = np.mean(local_maxima_)
+
+
+
+    # show the result
+    print("changed cor_id: ", cor_id)
+
+    
+
+    # var = y_bon_[0][:-1] - y_bon_[0][1:]
+    # plt.plot(range(len(var)), var)
+    # plt.show()
+
+    # empty_rgb = np.zeros_like(rgb, np.float32)
+    
+    # x_coord = np.arange(y_bon_.shape[1])
+    # y_coord_ceil = y_bon_[0].astype(int)
+    # y_coord_floor = y_bon_[1].astype(int)
+    # empty_rgb[y_coord_ceil, x_coord] = [255,255,255]
+    # empty_rgb[y_coord_floor, x_coord] = [255,255,255]
+    
+    # img = empty_rgb
+    # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # gray = np.float32(gray)
+    
+    # # @@ method 1 -> fail @@@
+    # # dst = cv2.cornerHarris(gray,5,3,0.04)
+    # # ret, dst = cv2.threshold(dst,0.1*dst.max(),255,0)
+    # # dst = np.uint8(dst)
+    # # ret, labels, stats, centroids = cv2.connectedComponentsWithStats(dst)
+    # # criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
+    # # corners = cv2.cornerSubPix(gray,np.float32(centroids),(5,5),(-1,-1),criteria)
+    # # for i in range(1, len(corners)):
+    # #     print(corners[i])
+    # # img[dst>0.1*dst.max()]=[0,255,255]
+    
+    # # @@ method 2 -> fail @@@
+    # # detect corners with the goodFeaturesToTrack function.
+    # corners = cv2.goodFeaturesToTrack(gray, 27, 0.01, 10)
+    # corners = np.int0(corners)
+    # # we iterate through each corner, 
+    # # making a circle at each point that we think is a corner.
+    # for i in corners:
+    #     x, y = i.ravel()
+    #     cv2.circle(img, (x, y), 3, 255, -1)
+    
+    # cv2.imshow('image', img)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows    
+    return cor_id
+
+
 def infer(rgb):
     # Run inference
     with torch.no_grad():                
@@ -312,7 +379,7 @@ def infer(rgb):
         
         
         # @@@@ TODO @@@@@@@@@@@@@@@@@@@@@@@@ POST PROCESSING - cor_id @@@@@@@@@@@@@@@@@@@@@@@@
-        # cor_id = postprocessing_cor_id(cor_id)
+        cor_id = postprocessing(y_cor_, cor_id)
         # @@@@ TODO @@@@@@@@@@@@@@@@@@@@@@@@ POST PROCESSING - cor_id @@@@@@@@@@@@@@@@@@@@@@@@
 
 
@@ -392,7 +459,7 @@ def infer(rgb):
 
     return points, xyzrgb, faces, cor_id, y_cor_, y_bon_, us, vs, xs, ys, zs
 
-def registry_points(spot, door_list, points_list):
+def registry_points(spot, door_list):
     pair = spot['pair']
     # make regex for room number
     n = re.compile(r'\d+')
@@ -409,7 +476,6 @@ def registry_points(spot, door_list, points_list):
             if str(door['room']) == room.group(0) and door['direction'] == direction.group(0):
                 doors.append(door)
                 break
-
     src = doors[0]
     ref = doors[1]
     
@@ -417,9 +483,9 @@ def registry_points(spot, door_list, points_list):
     src = transition(src, ref)
     src = rotate(src, ref)
 
-def geometric_registraion(localization_json, door_list, points_list):
+def geometric_registraion(localization_json, door_list):
     for spot in localization_json:
-        registry_points(spot, door_list, points_list)
+        registry_points(spot, door_list)
 
 if __name__ == '__main__':
     # Parse args & config
@@ -461,6 +527,7 @@ if __name__ == '__main__':
         rgb = cv2.imread(path)
         rgb = cv2.resize(rgb, (1024, 512), interpolation=cv2.INTER_LINEAR)
         rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+        
                
         # @@@ TODO @@@ 1. Door segmentation @@@@@
         
@@ -492,7 +559,7 @@ if __name__ == '__main__':
 
 
         # 잠시만 주석처리
-        save_img(rgb, cor_id, y_bon_, y_cor_, args, fname)
+        # save_img(rgb, cor_id, y_bon_, y_cor_, args, fname)
         
         # # visualize
         # vis_3d(points, faces, cor_id)
@@ -508,7 +575,7 @@ if __name__ == '__main__':
         idx += 1 
     
     # 문 위치와 방향 맞추는 함수
-    geometric_registraion(localization_json, door_list, points_list)       
+    geometric_registraion(localization_json, door_list)       
     
     # create empy list for visualization of vectors
     o3dLines = []
@@ -526,9 +593,6 @@ if __name__ == '__main__':
         line_set.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0]]))
         # Add the line to the list of lines
         o3dLines.append(line_set)
-
-
-    # total =  [points_list[i] for i in range(len(points_list))]
     
     def cut_flaws(points, threshhold=0.33):
         room_points = points_list[0]
@@ -575,12 +639,12 @@ if __name__ == '__main__':
     
     pcd.points = o3d.utility.Vector3dVector(np_points)
     pcd.colors = o3d.utility.Vector3dVector(np_colors)  
-    o3d.io.write_point_cloud("./total_xyzrgb.ply", pcd)
+    # o3d.io.write_point_cloud("./total_xyzrgb.ply", pcd) # 잠깐 주석처리
     # pcd_load = o3d.io.read_point_cloud("../../TestData/sync.ply")
     
     
     
-    o3d.visualization.draw_geometries([pcd] + o3dLines)
+    o3d.visualization.draw_geometries([pcd] + o3dLines) # 잠깐 주석처리
     # @@@ TODO @@@ 3. camera localization @@@@@
 
         
