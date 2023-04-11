@@ -37,7 +37,7 @@ door_list = [
 # src, ref : (변할것, 고정할것)
 localization_json = [
     {'spot': 1, 'pair': ('1B', '0F')},
-    {'spot': 0, 'pair': ('2R', '0L')}    
+    # {'spot': 0, 'pair': ('2R', '0L')}    
 ]
 
 
