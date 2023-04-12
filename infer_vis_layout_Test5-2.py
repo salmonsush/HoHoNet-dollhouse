@@ -310,8 +310,8 @@ def postprocessing(y_bon_, y_cor_, cor_id):
     
     # change y of cor_id to the y_bon value of same index. y_bon is shape of 1025,2. so it has two lines, upper line and lower line. The lower one matches to 2*i and the upper one matches to 2*i+1.
     # for i in range(int(len(cor_id)/2)):
-    #     cor_id[2*i][1] = y_bon_[0][int(cor_id[2*i][0])]
-    #     cor_id[2*i+1][1] = y_bon_[1][int(cor_id[2*i+1][0])]
+        cor_id[2*i][1] = y_bon_[0][int(cor_id[2*i][0])]
+        cor_id[2*i+1][1] = y_bon_[1][int(cor_id[2*i+1][0])]
             
     # show the result
     print("changed cor_id: ", cor_id)
@@ -559,9 +559,9 @@ if __name__ == '__main__':
         print(xyzrgb[256, 512, :3])
 
         # save points as .ply
-        save_ply(points, faces, args, fname)
+        # save_ply(points, faces, args, fname)
         # save txt
-        save_txt(cor_id, y_cor_, y_bon_, args, fname)
+        # save_txt(cor_id, y_cor_, y_bon_, args, fname)
         # save_image and plt.show()
 
 
@@ -581,9 +581,31 @@ if __name__ == '__main__':
 
         idx += 1 
     
+    '''
+    visualize initial pointcloud
+    '''
+    total =  [points_list[i] for i in range(len(points_list))]
+    regit_xyzrgb = np.concatenate(total, axis=0) 
+
+    # eliminate top points
+    # z = regit_xyzrgb[:,2]
+    # max_z = np.max(z)
+    # regit_xyzrgb = regit_xyzrgb[z < (max_z - 0.27)]
+    
+    pcd = o3d.geometry.PointCloud()
+    np_points = regit_xyzrgb[:,:3].reshape(-1, 3)
+    np_colors = regit_xyzrgb[:,3:].reshape(-1, 3)/255
+    
+    pcd.points = o3d.utility.Vector3dVector(np_points)
+    pcd.colors = o3d.utility.Vector3dVector(np_colors)  
+
+    o3d.visualization.draw_geometries([pcd]) # 잠깐 주석처리
+
+
     # 문 위치와 방향 맞추는 함수
     geometric_registraion(localization_json, door_list)       
     
+
     # create empy list for visualization of vectors
     o3dLines = []
 
