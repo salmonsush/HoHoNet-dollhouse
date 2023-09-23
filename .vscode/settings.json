@@ -1,0 +1,5 @@
+{
+    "python.pythonPaht" : "C:/Users/user/miniconda3/envs/hoho/python.exe",
+    "python.terminal.activateEnvironment" : true,
+    "terminal.integrated.shell.sindows" : "C:/Windows/System32/cmd.exe"
+}
